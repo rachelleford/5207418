@@ -1,0 +1,16 @@
+//
+//  ContentView.swift
+//  Boss5207418
+//
+//  Created by Rachelle Ford on 6/13/23.
+//
+
+import SwiftUI
+
+struct ContentView: View {
+    @State private var selectedTab: TabBar.Tab? = .home
+
+    var body: some View {
+        Home(selectedTab: $selectedTab ?? .constant(.home))
+    }
+}
