@@ -1,0 +1,73 @@
+//
+//  TabBar.swift
+//  Boss5207418
+//
+//  Created by Rachelle Ford on 6/16/23.
+//
+
+import SwiftUI
+
+struct TabBar: View {
+    @Binding var selectedTab: Tab
+    
+    enum Tab {
+        case home
+        case videos
+        case camera
+        case news
+        case profile
+    }
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            Divider()
+            
+            HStack {
+                Button(action: {
+                    selectedTab = .home
+                }) {
+                    Image(systemName: "house")
+                        .foregroundColor(selectedTab == .home ? .black : .gray)
+                }
+                Spacer()
+                
+                Button(action: {
+                    selectedTab = .videos
+                }) {
+                    Image(systemName: "video")
+                        .foregroundColor(selectedTab == .videos ? .black : .gray)
+                }
+                Spacer()
+                
+                Button(action: {
+                    selectedTab = .camera
+                }) {
+                    Image(systemName: "camera")
+                        .foregroundColor(selectedTab == .camera ? .black : .gray)
+                }
+                Spacer()
+                
+                Button(action: {
+                    selectedTab = .news
+                }) {
+                    Image(systemName: "newspaper")
+                        .foregroundColor(selectedTab == .news ? .black : .gray)
+                }
+                Spacer()
+                
+                Button(action: {
+                    selectedTab = .profile
+                }) {
+                    Image("boss1")
+                        .resizable()
+                        .frame(width: 21, height: 21)
+                        .cornerRadius(50)
+                        .foregroundColor(selectedTab == .profile ? .black : .gray)
+                }
+            }
+            .padding(.horizontal, 25)
+            .padding(.top, 10)
+            .background(Color.white) // Add white background here
+        }
+    }
+}
