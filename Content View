@@ -8,9 +8,21 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var selectedTab: TabBar.Tab? = .home
+    @EnvironmentObject var session: SessionStore
+
+    func listen() {
+        session.listen()
+    }
 
     var body: some View {
-        Home(selectedTab: $selectedTab ?? .constant(.home))
+        Group {
+            if session.session != nil {
+                HomeView()
+            } else {
+                HomeView()
+            }
+        }
+        .onAppear(perform: listen)
     }
 }
+
