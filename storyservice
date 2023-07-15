@@ -1,0 +1,152 @@
+//
+//  StoryService.swift
+//  Boss5207418
+//
+//  Created by Rachelle Ford on 7/11/23.
+//
+
+import Foundation
+import FirebaseAuth
+import Firebase
+import FirebaseFirestore
+import FirebaseStorage
+
+class StoryService: ObservableObject {
+    static let Stories = Firestore.firestore().collection("stories")
+    static let AllStories = Firestore.firestore().collection("allStories")
+    static let StoryTimeline = Firestore.firestore().collection("storyTimeline")
+
+    static func StoryUserId(userId: String) -> DocumentReference {
+        return Stories.document(userId)
+    }
+
+    static func storyTimelineUserId(userId: String) -> DocumentReference {
+        return StoryTimeline.document(userId)
+    }
+
+    static func uploadStory(imageData: Data, onSuccess: @escaping () -> Void, onError: @escaping (_ errorMessage: String) -> Void) {
+        guard let currentUser = Auth.auth().currentUser else {
+            // Handle the case when the user is not logged in
+            return
+        }
+        
+        let storyId = UUID().uuidString
+        let storageStoryRef = StorageService.storageStoryId(storyId: storyId)
+        let metadata = StorageMetadata()
+        metadata.contentType = "image/jpg"
+        
+        saveStoryPhoto(userId: currentUser.uid, storyId: storyId, imageData: imageData, metadata: metadata, storageStoryRef: storageStoryRef, onSuccess: {
+            // Story photo is saved, now save the story data to Firestore
+            
+            let storyData: [String: Any] = [
+                "userId": currentUser.uid,
+                "storyId": storyId,
+                "timestamp": Date().timeIntervalSince1970
+                // Add any other properties you want to save with the story
+            ]
+            
+            let userStoriesRef = StoryService.StoryUserId(userId: currentUser.uid)
+            userStoriesRef.collection("stories").document(storyId).setData(storyData) { error in
+                if let error = error {
+                    onError(error.localizedDescription)
+                } else {
+                    onSuccess()
+                }
+            }
+            
+        }, onError: onError)
+    }
+
+
+    static func loadUserStories(userId: String, onSuccess: @escaping (_ stories: [StoryBundle]) -> Void) {
+        StoryService.StoryUserId(userId: userId).collection("stories").getDocuments { (snapshot, error) in
+            guard let snapshot = snapshot else {
+                // Handle the error or the case when no stories found for the user
+                print("Failed to fetch user stories: \(error?.localizedDescription ?? "Unknown error")")
+                return
+            }
+            
+            var stories = [StoryBundle]()
+            
+            for document in snapshot.documents {
+                let data = document.data()
+                
+                guard let userDict = data["user"] as? [String: Any],
+                      let user = try? Firestore.Decoder().decode(BnnUser.self, from: userDict),
+                      let storyData = data["stories"] as? [[String: Any]] else {
+                    // Handle invalid story data
+                    print("Invalid story data for document: \(document.documentID)")
+                    continue
+                }
+                
+                var storyItems = [Story]()
+                for storyDict in storyData {
+                    if let imageURL = storyDict["imageURL"] as? String {
+                        let storyItem = Story(id: UUID().uuidString, ImageURL: imageURL)
+                        storyItems.append(storyItem)
+                    }
+                }
+                
+                let storyBundle = StoryBundle(id: document.documentID, user: user, stories: storyItems)
+                stories.append(storyBundle)
+            }
+            
+            onSuccess(stories)
+        }
+    }
+
+    static func saveStoryPhoto(userId: String, storyId: String, imageData: Data, metadata: StorageMetadata, storageStoryRef: StorageReference, onSuccess: @escaping () -> Void, onError: @escaping (_ errorMessage: String) -> Void) {
+        storageStoryRef.putData(imageData, metadata: metadata) { (storageMetadata, error) in
+            if let error = error {
+                onError(error.localizedDescription)
+                return
+            }
+
+            storageStoryRef.downloadURL { (url, error) in
+                if let metaImageUrl = url?.absoluteString {
+                    let firestoreStoryRef = StoryService.StoryUserId(userId: userId).collection("stories").document(storyId)
+
+                    let story = Story(
+                        id: UUID().uuidString,
+                        ImageURL: metaImageUrl
+                    )
+
+                    let storyBundle = StoryBundle(
+                        id: storyId,
+                        user: BnnUser(
+                            id: "",
+                            uid: userId,
+                            email: "", // Provide the user's email here
+                            profileImageUrl: "", // Provide the user's profile image URL here
+                            username: "", // Provide the user's username here
+                            searchName: [], // Provide the user's searchName here
+                            bio: "", // Provide the user's bio here
+                            website: "", // Provide the user's website here
+                            isVerified: false // Provide the user's verification status here
+                        ),
+                        stories: [story] // Provide an array of `Story` instances representing the individual stories
+                    )
+
+                    guard let dict = try? storyBundle.asDictionary() else {
+                        onError("Failed to convert story bundle to dictionary.")
+                        return
+                    }
+
+                    firestoreStoryRef.setData(dict) { (error) in
+                        if let error = error {
+                            onError(error.localizedDescription)
+                            return
+                        }
+
+                        StoryService.storyTimelineUserId(userId: userId).collection("storyTimeline").document(storyId).setData(dict)
+                        StoryService.AllStories.document(storyId).setData(dict)
+
+                        onSuccess()
+                    }
+                } else {
+                    onError("Failed to get image URL.")
+                }
+            }
+        }
+    }
+}
